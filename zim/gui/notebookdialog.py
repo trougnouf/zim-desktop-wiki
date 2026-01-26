@@ -103,7 +103,7 @@ class NotebookTreeModel(Gtk.ListStore):
 		# Fix path foreground on dark themes
 		# Dark theme : light 5 (#9A9996)
 		# Light theme : dark 2 (#5E5C64)
-		dark_theme = ConfigManager.preferences['GtkInterface']['prefer-dark-theme']
+		dark_theme = ConfigManager.preferences['GtkInterface'].get('prefer-dark-theme')
 		self._path_color = '#9A9996' if dark_theme else '#5E5C64'
 
 		self._loading = True

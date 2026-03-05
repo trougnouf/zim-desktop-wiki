@@ -42,6 +42,13 @@ class EditActionMixin(object):
 
 		PluginManager.connect('extensions-changed', on_extensions_changed)
 
+	def _on_color_set(self, widget):
+		rgba = widget.get_rgba()
+		# Convert GTK RGBA (0.0 - 1.0) to Hex (#RRGGBB)
+		color_value = "#%02x%02x%02x" % (int(rgba.red*255), int(rgba.green*255), int(rgba.blue*255))
+		self.pageview.textview.get_buffer().apply_color_interactive(color_value)
+		self.pageview.grab_focus()
+
 	def _create_list_menu(self):
 		menu = Gio.Menu()
 		section = Gio.Menu()
@@ -149,6 +156,11 @@ class EditBar(EditActionMixin, Gtk.ActionBar):
 			button.connect('clicked', _grab_focus_on_click)
 			self.pack_start(button)
 
+		self.color_button = Gtk.ColorButton()
+		self.color_button.set_tooltip_text(_("Text Color"))
+		self.color_button.connect('color-set', self._on_color_set)
+		self.pack_start(self.color_button)
+
 		for label, icon_name, menu in self.edit_menus:
 			button = self._create_menu_button(label, icon_name, menu)
 			self.pack_start(button)
@@ -229,6 +241,14 @@ class ToolBarEditBarManager(EditActionMixin, ConnectorMixin):
 			button.set_is_important(True) # Ensure text is shown by default
 			toolbar.insert(button, -1)
 			self._formatting_items.append(button)
+
+		self.color_button = Gtk.ColorButton()
+		self.color_button.set_tooltip_text(_("Text Color"))
+		self.color_button.connect('color-set', self._on_color_set)
+		item = Gtk.ToolItem()
+		item.add(self.color_button)
+		toolbar.insert(item, -1)
+		self._formatting_items.append(item)
 
 		toolbar.insert(Gtk.SeparatorToolItem(), -1)
 

@@ -114,6 +114,16 @@ Before version 0.26 all indented paragraphs were rendered verbatim as well. This
 
 You can combine all standard inline markup, the main exception is "verbatim" formatted text.
 
+===== Color =====
+
+To apply color to text, use the following syntax:
+
+'''
+{{color:red|This text will be red}}
+'''
+
+You can use color names (e.g., red, blue, green) or hexadecimal color codes (e.g., #FF0000, #00FF00).
+
 ===== Images =====
 
 To include images use:

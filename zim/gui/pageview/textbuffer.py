@@ -45,8 +45,8 @@ _is_not_line_based_tag = lambda tag: hasattr(tag, 'zim_tag') and tag.zim_tag not
 	# Line based tags are mutually exclusive and should cover the newline at the
 	# end of the last line
 
-_format_tags = ('h', 'pre', 'emphasis', 'strong', 'mark', 'strike', 'sub', 'sup', 'code')
-_inline_format_tags = ('emphasis', 'strong', 'mark', 'strike', 'sub', 'sup', 'code')
+_format_tags = ('h', 'pre', 'emphasis', 'strong', 'mark', 'strike', 'sub', 'sup', 'code', 'color')
+_inline_format_tags = ('emphasis', 'strong', 'mark', 'strike', 'sub', 'sup', 'code', 'color')
 _is_format_tag = lambda tag: hasattr(tag, 'zim_tag') and tag.zim_tag in _format_tags
 _is_not_format_tag = lambda tag: hasattr(tag, 'zim_tag') and tag.zim_tag not in _format_tags
 	# Format tags are tags that apply a formatting (like bold & italic), and do not
@@ -55,7 +55,8 @@ _is_inline_format_tag = lambda tag: hasattr(tag, 'zim_tag') and tag.zim_tag in _
 _is_not_inline_format_tag = lambda tag: hasattr(tag, 'zim_tag') and tag.zim_tag not in _inline_format_tags
 	# Inline format tags are format tags that are not line based
 
-_is_inline_nesting_tag = lambda tag: hasattr(tag, 'zim_tag') and tag.zim_tag in TextBuffer._nesting_style_tags or tag.zim_tag == LINK
+_is_inline_nesting_tag = lambda tag: hasattr(tag, 'zim_tag') and tag.zim_tag in TextBuffer._nesting_style_tags or tag.zim_tag in (LINK, COLOR)
+_is_color_tag = lambda tag: hasattr(tag, 'zim_tag') and tag.zim_tag == COLOR
 _is_non_nesting_tag = lambda tag: hasattr(tag, 'zim_tag') and tag.zim_tag in ('pre', 'code', 'tag')
 	# Nesting tags can have other formatting styles nested inside them
 	# So they are specifically not mutually exclusive
@@ -64,7 +65,7 @@ _is_non_nesting_tag = lambda tag: hasattr(tag, 'zim_tag') and tag.zim_tag in ('p
 # Tests for specific tags
 _is_indent_tag = lambda tag: hasattr(tag, 'zim_tag') and tag.zim_tag in (BLOCK, LISTITEM)
 _is_not_indent_tag = lambda tag: hasattr(tag, 'zim_tag') and tag.zim_tag not in (BLOCK, LISTITEM)
-_is_listitem_tag = lambda tag: hasattr(tag, 'zim_tag') and tag.zim_tag == LISTITEM 
+_is_listitem_tag = lambda tag: hasattr(tag, 'zim_tag') and tag.zim_tag == LISTITEM
 _is_heading_tag = lambda tag: hasattr(tag, 'zim_tag') and tag.zim_tag == HEADING
 _is_not_heading_tag = lambda tag: hasattr(tag, 'zim_tag') and tag.zim_tag != HEADING
 _is_pre_tag = lambda tag: hasattr(tag, 'zim_tag') and tag.zim_tag == VERBATIM_BLOCK
@@ -309,7 +310,7 @@ class TextBuffer(TextBufferFindMixin, Gtk.TextBuffer):
 
 	#: tags that can nest in any order
 	_nesting_style_tags = (
-		'emphasis', 'strong', 'mark', 'strike', 'sub', 'sup',
+		'emphasis', 'strong', 'mark', 'strike', 'sub', 'sup', 'color',
 	)
 
 	tag_attributes = {
@@ -672,7 +673,22 @@ class TextBuffer(TextBufferFindMixin, Gtk.TextBuffer):
 						tag.zim_attrib['href'] = element.attrib['href']
 					else:
 						tag.zim_attrib['href'] = None
-					self._editmode_tags.pop()
+
+					# FIX: Bulletproof tag removal so links never bleed
+					if tag in self._editmode_tags:
+						self._editmode_tags.remove(tag)
+
+				elif element.tag == COLOR:
+					self._set_textstyles(textstyles)
+					tag = self._create_color_tag(element.attrib.get("value", "black"))
+					self._editmode_tags = list(filter(lambda t: not _is_color_tag(t), self._editmode_tags)) + [tag]
+					if element.text:
+						self.insert_at_cursor(element.text)
+					self._insert_element_children(element, list_level=list_level, textstyles=textstyles)
+
+					# FIX: Bulletproof tag removal for colors
+					if tag in self._editmode_tags:
+						self._editmode_tags.remove(tag)
 				elif element.tag == 'tag':
 					self._set_textstyles(textstyles)  # reset Needed for interactive insert tree after paste
 					self.insert_tag_at_cursor(element.text, **element.attrib)
@@ -743,7 +759,10 @@ class TextBuffer(TextBufferFindMixin, Gtk.TextBuffer):
 
 		if names:
 			for name in names:
-				tag = self.get_tag_table().lookup('style-' + name)
+				if name.startswith('color-'):
+					tag = self._create_color_tag(name[6:])
+				else:
+					tag = self.get_tag_table().lookup('style-' + name)
 				if _is_heading_tag(tag):
 					self._editmode_tags = \
 						list(filter(_is_not_indent_tag, self._editmode_tags))
@@ -799,6 +818,18 @@ class TextBuffer(TextBufferFindMixin, Gtk.TextBuffer):
 		prio_tag = self.get_tag_table().lookup('style-' + self._static_tag_before_links)
 		tag.set_priority(prio_tag.get_priority()+1)
 
+		return tag
+
+	def _create_color_tag(self, color_value):
+		tag_name = 'color-' + color_value
+		tag = self.get_tag_table().lookup(tag_name)
+		if not tag:
+			tag = self.create_tag(tag_name, foreground=color_value)
+			tag.zim_tag = COLOR
+			tag.zim_attrib = {'value': color_value}
+
+			prio_tag = self.get_tag_table().lookup('style-' + self._static_tag_before_links)
+			tag.set_priority(prio_tag.get_priority() + 1)
 		return tag
 
 	def get_link_tag(self, iter):
@@ -1288,7 +1319,7 @@ class TextBuffer(TextBufferFindMixin, Gtk.TextBuffer):
 	def _insert_bullet_at_cursor(self, bullet):
 		'''Low level insert bullet
 
-		External interface should use `set_bullet(line, bullet)` 
+		External interface should use `set_bullet(line, bullet)`
 		instead of calling this method directly.
 		'''
 		insert = self.get_insert_iter()
@@ -1588,7 +1619,7 @@ class TextBuffer(TextBufferFindMixin, Gtk.TextBuffer):
 		elif self.get_has_selection():
 			self.strip_selection()
 		elif autoselect:
-			# First check formatting is consistent left and right of the cursor, if not 
+			# First check formatting is consistent left and right of the cursor, if not
 			# this should be an edit-mode toggle, not a selection toggle
 			iter = self.get_insert_iter()
 			name_left = name in [t.zim_tag for t in self.iter_get_zim_tags(iter)]
@@ -1844,6 +1875,21 @@ class TextBuffer(TextBufferFindMixin, Gtk.TextBuffer):
 			self.filter_editmode(_is_not_inline_format_tag)
 
 		self.delete_mark(mark)
+
+	def apply_color_interactive(self, color_value):
+		'''Applies color to current selection or starts edit-mode with color'''
+		tag = self._create_color_tag(color_value)
+		if self.get_has_selection():
+			with self.user_action:
+				start, end = self.get_selection_bounds()
+				self.smart_remove_tags(_is_color_tag, start, end)
+				self.apply_tag(tag, start, end)
+				self.set_modified(True)
+			self.update_editmode()
+		else:
+			tags = [t for t in self.get_editmode() if not _is_color_tag(t)]
+			tags.append(tag)
+			self.set_editmode(tags)
 
 	def clear_heading_format_interactive(self):
 		'''Remove heading formatting for current line or selection'''
@@ -2502,6 +2548,8 @@ class TextBuffer(TextBufferFindMixin, Gtk.TextBuffer):
 						continue_attrib = {}
 					elif t == 'link':
 						attrib = self.get_link_data(iter)
+					elif t == COLOR:
+						attrib = tag.zim_attrib.copy()
 					elif t == 'tag':
 						attrib = self.get_tag_data(iter)
 						if not attrib['name']:
@@ -3144,4 +3192,3 @@ class TextBuffer(TextBufferFindMixin, Gtk.TextBuffer):
 
 			self.place_cursor(iter)
 			self.insert_parsetree_at_cursor(parsetree, interactive=True)
-

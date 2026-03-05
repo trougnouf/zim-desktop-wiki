@@ -293,3 +293,11 @@ class Dumper(DumperClass):
 
 	def dump_line(self, tag, attrib, strings=None):
 		return '\n<hr>\n'
+
+	def dump_color(self, tag, attrib, strings):
+		color = attrib.get('value', 'black')
+		# Strip quotes just in case to prevent basic HTML injection
+		color = html_encode(color.replace('"', '').replace("'", ""))
+		strings.insert(0, '<span style="color: %s;">' % color)
+		strings.append('</span>')
+		return strings

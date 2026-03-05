@@ -144,8 +144,9 @@ VERBATIM = 'code'
 STRIKE = 'strike'
 SUBSCRIPT = 'sub'
 SUPERSCRIPT = 'sup'
+COLOR = 'color'
 
-INLINE_STYLE_TAGS = (EMPHASIS, STRONG, MARK, VERBATIM, STRIKE, SUBSCRIPT, SUPERSCRIPT) # Inline tags without additional semantics
+INLINE_STYLE_TAGS = (EMPHASIS, STRONG, MARK, VERBATIM, STRIKE, SUBSCRIPT, SUPERSCRIPT, COLOR) # Inline tags without additional semantics
 
 
 LINK = 'link'

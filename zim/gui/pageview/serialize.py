@@ -14,7 +14,7 @@ logger = logging.getLogger('zim.gui.pageview')
 
 
 from zim.plugins import PluginManager
-from zim.formats import IMAGE, OBJECT, ANCHOR, LINK, TAG, HEADING, LINE, TABLE
+from zim.formats import IMAGE, OBJECT, ANCHOR, LINK, TAG, HEADING, LINE, TABLE, COLOR
 from zim.parse.tokenlist import TEXT, END, collect_until_end_token
 from zim.parse.xml import simple_token_to_xml_dumper, simple_xml_to_token_parser
 
@@ -57,16 +57,16 @@ class TextBufferInternalContents():
 
 	The key difference between the content in this object and the content in
 	a L{ParseTree} object is that this object is intended to exaxtly reproduce
-	the L{TextBuffer} contents even if it contains semantic errors. This is 
-	relevant specifically for undo/redo actions that should reproduce the 
+	the L{TextBuffer} contents even if it contains semantic errors. This is
+	relevant specifically for undo/redo actions that should reproduce the
 	exact state of the buffer. The 	L{ParseTree} applies various filters and
-	cleans up errors where possible and therefore is a much more stable and 
+	cleans up errors where possible and therefore is a much more stable and
 	clean interface to the document contents.
 
 	NOTE: This type of serialization should only be used for representation
 	of C{TextBuffer} contents in classes directly related to the C{TextBuffer}
 	and for testing purposes. All other parsing should us C{ParseTree} instead.
-	
+
 	**The content of this class is not considered stable for outside APIs.**
 	'''
 
@@ -87,8 +87,8 @@ class TextBufferInternalContents():
 	@classmethod
 	def new_from_xml(cls, xml):
 		'''Convert xml-like to object instance
-		
-		NOTE: Inteded for test cases only, do not use in the application - 
+
+		NOTE: Inteded for test cases only, do not use in the application -
 		not robust / un-save for external or mal-formed context
 		'''
 		data = []
@@ -109,10 +109,10 @@ class TextBufferInternalContents():
 
 	def to_xml(self):
 		'''Convert obejct contents to xml-like
-		
-		NOTE: Inteded for test cases only, do not use in the application - 
+
+		NOTE: Inteded for test cases only, do not use in the application -
 		not robust / un-save for external or mal-formed context
-		'''	
+		'''
 		xml = simple_token_to_xml_dumper(
 			self._data,
 			tags_without_end_tag=_INTERNAL_OBJECT_LIKE_TAGS
@@ -126,15 +126,15 @@ _is_zim_tag = lambda tag: hasattr(tag, 'zim_tag')
 
 def textbuffer_internal_serialize_range(textbuffer, start, end):
 	'''Function that returns a C{TextBufferInternalContents} object
-	
+
 	Basic serialization is in terms of TextTags, PixBufs and TextChildAnchors
 	These are represented as tokens where TextTags have a start and an end token
 	and text, pixbufs and anchors are represented as single tokens
 
-	This method does not enforce zim's semantic rules becaues it is used for 
+	This method does not enforce zim's semantic rules becaues it is used for
 	direct representation of the buffer, including errors.
 
-	The only logic it applies is the hierarchic nesting of TextTags to allow 
+	The only logic it applies is the hierarchic nesting of TextTags to allow
 	a stable xml-like representation.
 	'''
 	textbuffer_data = []
@@ -179,7 +179,7 @@ def textbuffer_internal_serialize_range(textbuffer, start, end):
 			# But limit slice to first pixbuf or embeddded widget
 			text = iter.get_slice(bound)
 			if PIXBUF_CHR in text[1:]:
-				# Position 0 is a special case - we see this char, 
+				# Position 0 is a special case - we see this char,
 				# but get_pixbuf already returned None, so it must be taken literal
 				i = 1 + text[1:].index(PIXBUF_CHR)
 				bound = iter.copy()
@@ -192,7 +192,7 @@ def textbuffer_internal_serialize_range(textbuffer, start, end):
 	# close any open tags
 	if texttags_stack:
 		textbuffer_data.extend([(END, t[1]) for t in reversed(texttags_stack)])
-	
+
 	return TextBufferInternalContents(textbuffer_data)
 
 
@@ -218,7 +218,7 @@ def _init_texttags_stack(texttags_stack, iter, texttags):
 
 
 def _update_texttags_stack(texttags_stack, iter, texttags):
-	# This is a helper function that compares TextTags at a given iter with the 
+	# This is a helper function that compares TextTags at a given iter with the
 	# stack of open tags. It updates the stack and returns open/close tokens
 	# that reflect the change.
 	#
@@ -274,7 +274,7 @@ def _sort_nesting_style_tags_for_init(iter, new_texttags):
 
 def _sort_nesting_style_tags_for_update(iter, new_texttags, open_texttags):
 	# This helper function figures out the sorting of style tags that have the same priority.
-	# Tags that start earlier obviously go first. Of all tags opening at the same time, those 
+	# Tags that start earlier obviously go first. Of all tags opening at the same time, those
 	# which run longest get opened first - this way we optimize for longest stretch without breaks.
 	new_block, new_nesting, new_leaf = _split_nesting_style_tags(new_texttags)
 	open_block, open_nesting, open_leaf = _split_nesting_style_tags(open_texttags)
@@ -319,12 +319,12 @@ def textbuffer_internal_insert_at_cursor(textbuffer, data):
 
 	textbuffer._editmode_tags = [] # low level insert method, no carry over of open tags
 	texttag_stack = []
-	
+
 	token_iter = iter(data._data)
 	for t in token_iter:
 		if t[0] == TEXT:
 			textbuffer.insert_at_cursor(t[1])
-		
+
 		# Pixbuf types
 		elif t[0] == IMAGE:
 			textbuffer.insert_image_at_cursor(None, **t[1]) # TODO - should we use _file to store actual file object in attrib
@@ -379,6 +379,8 @@ def textbuffer_internal_insert_at_cursor(textbuffer, data):
 					pass # Continue open link tag
 				else:
 					texttag = textbuffer._create_link_tag('', **t[1])
+			elif t[0] == COLOR:
+				texttag = textbuffer._create_color_tag(t[1]['value'])
 			elif t[0] == TAG:
 				texttag = textbuffer._create_tag_tag(None)
 			elif t[0] == HEADING:
@@ -397,7 +399,7 @@ def textbuffer_internal_insert_at_cursor(textbuffer, data):
 				texttag = textbuffer.get_tag_table().lookup('style-' + t[0])
 
 			if not texttag:
-				raise AssertionError('Unknown internal data element: %r' % (t,))			
+				raise AssertionError('Unknown internal data element: %r' % (t,))
 			texttag_stack.append((t[0], texttag))
 			textbuffer._editmode_tags.append(texttag)
 
@@ -415,15 +417,15 @@ def _get_link_texttag(startiter):
 			if hasattr(texttag, 'zim_tag') and texttag.zim_tag == 'link':
 				return texttag
 	else:
-		return None	
+		return None
 
 
 def _postprocess_insert_link_tag(enditer, texttag):
 	# If the "href" attribute matches the text of the link it should
-	# be set to `None` to flag that the href is "dynamic" and should 
-	# change with the text. Otherwise the href is fixed regardless of 
+	# be set to `None` to flag that the href is "dynamic" and should
+	# change with the text. Otherwise the href is fixed regardless of
 	# text editing.
-	
+
 	# TODO: this logic is copy of logic in _create_link_tag -- refactor for re-use
 	href = texttag.zim_attrib['href']
 	if not href or href.isspace():

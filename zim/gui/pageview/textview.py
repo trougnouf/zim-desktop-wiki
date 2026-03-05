@@ -63,6 +63,7 @@ markup_re = [
 	('style-sup', re.compile(r'(?<=\w)\^(\S*)$')),
 	('style-sub', re.compile(r'(?<=\w)_\{(\S*)}$')),
 ]
+color_re = re.compile(r'\{\{color:\s*([^\|\}]+)\|(.*?)\}\}$', re.U)
 
 link_to_anchor_re = re.compile(r'^([\w\.\-\(\)]*#\w[\w_-]+)$', re.U) # before the "#" can be a page name, needs to match logic in 'link_to_page_re'
 
@@ -975,25 +976,39 @@ class TextView(Gtk.TextView):
 		elif self.preferences['auto_reformat']:
 			linestart = buffer.get_iter_at_line(end.get_line())
 			partial_line = linestart.get_slice(end)
-			for style, style_re in markup_re:
-				m = style_re.search(partial_line)
-				if m:
-					matchstart = linestart.copy()
-					matchstart.forward_chars(m.start())
-					matchend = linestart.copy()
-					matchend.forward_chars(m.end())
-					if buffer.get_range_has_non_nesting_formatting(matchstart, matchend) \
-						or buffer.range_has_tags(_is_link_tag_without_href, matchstart, matchend):
-							break
-					else:
-						with buffer.tmp_cursor(matchstart):
-							buffer.delete(matchstart, matchend)
-							buffer.insert_with_tags_by_name(matchstart, m.group(1), style)
-							handled = True
-							break
 
-		if handled:
-			self.stop_emission('end-of-word')
+			m_color = color_re.search(partial_line)
+			if m_color:
+				matchstart = linestart.copy()
+				matchstart.forward_chars(m_color.start())
+				matchend = linestart.copy()
+				matchend.forward_chars(m_color.end())
+				if not buffer.get_range_has_non_nesting_formatting(matchstart, matchend):
+					with buffer.tmp_cursor(matchstart):
+						buffer.delete(matchstart, matchend)
+						tag = buffer._create_color_tag(m_color.group(1))
+						buffer.insert_with_tags_by_name(matchstart, m_color.group(2), tag.get_property('name'))
+					handled = True
+			else:
+				for style, style_re in markup_re:
+					m = style_re.search(partial_line)
+					if m:
+						matchstart = linestart.copy()
+						matchstart.forward_chars(m.start())
+						matchend = linestart.copy()
+						matchend.forward_chars(m.end())
+						if buffer.get_range_has_non_nesting_formatting(matchstart, matchend) \
+							or buffer.range_has_tags(_is_link_tag_without_href, matchstart, matchend):
+							break
+						else:
+							with buffer.tmp_cursor(matchstart):
+								buffer.delete(matchstart, matchend)
+								buffer.insert_with_tags_by_name(matchstart, m.group(1), style)
+								handled = True
+								break
+
+			if handled:
+				self.stop_emission('end-of-word')
 
 	def do_end_of_line(self, end):
 		# Default handler, takes care of cutting of formatting on the
@@ -1097,5 +1112,3 @@ class TextView(Gtk.TextView):
 				return True
 
 		return False
-
-

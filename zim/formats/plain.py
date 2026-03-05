@@ -175,6 +175,10 @@ class Dumper(DumperClass):
 	def dump_anchor(self, tag, attrib, strings=None):
 		return () # anchor has no text representation
 
+	def dump_color(self, tag, attrib, strings=None):
+		# Strip the color syntax, just return the text
+		return strings or []
+
 	def dump_link(self, tag, attrib, strings=None):
 		# Just plain text, either text of link, or link href
 		assert 'href' in attrib, \

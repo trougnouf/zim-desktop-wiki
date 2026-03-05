@@ -170,3 +170,10 @@ class Dumper(TextDumper):
 
 	def dump_line(self, tag, attrib, strings=None):
 		return '\n{}\n'.format('*' * 5)
+
+	def dump_color(self, tag, attrib, strings):
+		color = attrib.get('value', 'black')
+		color = color.replace('"', '').replace("'", "")
+		strings.insert(0, '<span style="color: %s;">' % color)
+		strings.append('</span>')
+		return strings

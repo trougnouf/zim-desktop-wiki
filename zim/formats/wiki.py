@@ -99,6 +99,7 @@ class WikiParser(object):
 		descent = lambda *a: self.nested_inline_parser_below_link(*a)
 		self.nested_inline_parser_below_link = (
 			Rule(TAG, r'(?<!\S)@\w+', process=self.parse_tag)
+			| Rule(COLOR, r'\{\{color:\s*([^\|\}]+)\|(.*?)\}\}', process=self.parse_color)
 			| Rule(EMPHASIS, r'//(?!/)(.*?)(?<!:)//', descent=descent) # no ':' at the end (ex: 'http://')
 			| Rule(STRONG, r'\*\*(?!\*)(.*?)\*\*', descent=descent)
 			| Rule(MARK, r'__(?!_)(.*?)__', descent=descent)
@@ -113,6 +114,7 @@ class WikiParser(object):
 			Rule(LINK, my_url_re, process=self.parse_url)
 			| Rule(LINK, r'\[\[(?!\[)(.*?\]*)\]\]', process=self.parse_link)
 			| Rule(ANCHOR, r'\{\{id:\s+(\w[\w-]+)\s*\}\}', process=self.parse_anchor) # HACK, hardcode inline object syntax
+			| Rule(COLOR, r'\{\{color:\s*([^\|\}]+)\|(.*?)\}\}', process=self.parse_color)
 			| Rule(IMAGE, r'\{\{(?!\{)(.*?)\}\}', process=self.parse_image)
 			| Rule(TAG, r'(?<!\S)@\w+', process=self.parse_tag)
 			| Rule(EMPHASIS, r'//(?!/)(.*?)(?<!:)//', descent=descent) # no ':' at the end (ex: 'http://')
@@ -487,6 +489,11 @@ class WikiParser(object):
 		else:
 			builder.append(IMAGE, attrib)
 
+	def parse_color(self, builder, color_value, text):
+		builder.start(COLOR, {'value': color_value})
+		self.inline_parser(builder, text)
+		builder.end(COLOR)
+
 	def parse_url(self, builder, *a):
 		text = a[0]
 		if self.backward_url_parsing:
@@ -622,6 +629,12 @@ class Dumper(TextDumper):
 
 	def dump_anchor(self, tag, attrib, strings=None):
 		return ("{{id: ", attrib['name'], "}}")
+
+	def dump_color(self, tag, attrib, strings=None):
+		color = attrib.get('value', 'black')
+		if not strings:
+			strings = []
+		return ['{{color:', color, '|'] + strings + ['}}']
 
 	def dump_link(self, tag, attrib, strings=None):
 		assert 'href' in attrib, \
